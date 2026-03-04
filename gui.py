@@ -187,7 +187,7 @@ class MainApplication(ttk.Frame):  # Графический интерфейс
         """Обработчик кнопки 'О программе'"""
         about_text = """
         Анализатор телеметрии
-        Версия 0.2 (Pre-Alpha)
+        Версия 0.3.2
         
         Разработано для анализа и визуализации
         данных телеметрии uav.
@@ -200,3 +200,12 @@ class MainApplication(ttk.Frame):  # Графический интерфейс
         """Выход из приложения"""
         if messagebox.askyesno("Выход", "Вы уверены, что хотите выйти?"):
             self.parent.quit()
+
+def main():  # Точка входа в приложение
+    root = tk.Tk()
+    MainApplication(root)
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()
