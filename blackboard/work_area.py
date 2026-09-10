@@ -146,7 +146,7 @@ def create_parameter_values(notebook: ttk.Notebook, df: pd.DataFrame) -> ttk.Fra
 
     ttk.Label(val_frame, text="Параметр:").grid(row=0, column=0, padx=5, pady=5)
     var = tk.StringVar(value="timestamp")
-    combobox = ttk.Combobox(val_frame, textvariable=var, state="readonly")
+    combobox = ttk.Combobox(val_frame, textvariable=var, state="readonly", width=55)
     combobox.set(df.columns[0])
     combobox["values"] = list(df.columns)
     combobox.grid(row=0, column=1, padx=5, pady=5)
@@ -163,8 +163,26 @@ def create_parameter_values(notebook: ttk.Notebook, df: pd.DataFrame) -> ttk.Fra
             time_str = row['timestamp'].strftime('%H:%M:%S.%f')[:-3]
             tree.insert("", "end", values=(time_str, row[param]))
 
+    def update_combobox(event):
+        # Получаем текущее значение из поля ввода
+        search_term = entry.get().lower()
+        
+        # Фильтруем список: оставляем только те элементы, которые содержат поисковый термин
+        filtered_options = [option for option in df.columns if search_term in option.lower()]
+        
+        # Обновляем список значений Combobox
+        combobox['values'] = filtered_options
+
     plot_btn = ttk.Button(val_frame, text="Выбрать параметр", command=show_values)
     plot_btn.grid(row=0, column=4, padx=5, pady=5)
+    
+    ttk.Label(val_frame, text="Поиск параметра:").grid(row=1, column=0, padx=5, pady=5)
+    # Создаём поле ввода (Entry)
+    entry = tk.Entry(val_frame, width=55)
+    entry.grid(row=1, column=1, padx=10, pady=10)
+
+    # Привязываем обработчик события
+    entry.bind('<KeyRelease>', update_combobox)
     
     columns = ("Время", "Значение")
     tree = ttk.Treeview(frame, columns=columns, show="headings", height=20)
@@ -182,7 +200,6 @@ def create_parameter_values(notebook: ttk.Notebook, df: pd.DataFrame) -> ttk.Fra
 
     return frame
 
-    
     
 def create_plots_tab(
     notebook: ttk.Notebook, df: pd.DataFrame, status_var: Optional[tk.StringVar] = None
@@ -231,7 +248,7 @@ def create_plots_tab(
     )
 
     # Выбор параметра для линии Y
-    ttk.Label(control_frame, text="Линия Y:").grid(row=0, column=2, padx=5, pady=5)
+    ttk.Label(control_frame, text="Ось Y:").grid(row=0, column=2, padx=5, pady=5)
     y_var = tk.StringVar(value=df.columns[0] if len(df.columns) else "")
     y_combobox = ttk.Combobox(control_frame, textvariable=y_var, state="readonly")
     y_combobox["values"] = list(df.columns)
@@ -375,3 +392,18 @@ def create_categorized_tabs(notebook: ttk.Notebook, df: pd.DataFrame) -> ttk.Not
     _create_text_widget_with_scroll(frame, info_text)
 
     return notebook
+
+def create_analysis_tab(notebook: ttk.Notebook, df: pd.DataFrame) -> ttk.Notebook:
+    """Создает вкладку для анализа и обработки данных.
+
+    Args:
+        notebook: Виджет блокнота.
+        df: DataFrame с данными.
+
+    Returns:
+        Обновленный виджет блокнота.
+    """
+    categorized = categorize_parameters(df.columns)
+    frame = ttk.Frame(notebook)
+    notebook.add(frame, text="Анализ")
+    

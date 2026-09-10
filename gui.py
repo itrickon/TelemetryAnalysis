@@ -10,7 +10,7 @@ from blackboard.data_loader import (
     export_statistics_to_txt,
 )
 from blackboard.work_area import create_basic_info_tab, create_parameter_values, create_statics_tab
-from blackboard.work_area import create_categorized_tabs, create_plots_tab
+from blackboard.work_area import create_categorized_tabs, create_plots_tab, create_analysis_tab
 
 
 class MainApplication(ttk.Frame):
@@ -121,11 +121,12 @@ class MainApplication(ttk.Frame):
 
         create_basic_info_tab(self.notebook, self.df)
         create_statics_tab(self.notebook, self.df)
-        create_parameter_values(self.notebook, self.df)
         create_categorized_tabs(self.notebook, self.df)
+        create_parameter_values(self.notebook, self.df)
+        create_analysis_tab(self.notebook, self.df)
 
         # Возвращаем вкладку графика на нужную позицию
-        self.notebook.insert(3, self.plots_tab, text="Графики")
+        self.notebook.insert(4, self.plots_tab, text="Графики")
 
     def _open_file(self):
         """Открывает и загружает файл телеметрии."""

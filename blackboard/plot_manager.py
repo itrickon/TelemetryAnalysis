@@ -99,7 +99,7 @@ class PlotManager:
 
         xu = get_unit(self.x_col)
         x_title = f"{self.x_col} ({xu})" if xu else self.x_col
-
+        
         fig.update_layout(
             title=f"{self.x_col} | линий: {len(self.traces)}",
             xaxis_title=x_title,
@@ -108,6 +108,7 @@ class PlotManager:
             legend=dict(orientation="v", yanchor="bottom", y=1.02, xanchor="left", x=0),
             margin=dict(l=50, r=20, t=50, b=40),
         )
+        
         return fig
 
     def refresh(self):

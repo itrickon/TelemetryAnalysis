@@ -4,3 +4,4 @@ plotly
 kaleido
 sv-ttk
 matplotlib>=3.5.0
+tf-nightly
