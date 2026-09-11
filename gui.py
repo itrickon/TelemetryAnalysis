@@ -8,10 +8,9 @@ import sv_ttk
 from blackboard.data_loader import (
     load_telemetry_data,
     export_statistics_to_txt,
-    export_plot_as_png,
 )
 from blackboard.work_area import create_basic_info_tab, create_parameter_values, create_statics_tab
-from blackboard.work_area import create_categorized_tabs, create_plots_tab
+from blackboard.work_area import create_categorized_tabs, create_plots_tab, create_analysis_tab
 
 
 class MainApplication(ttk.Frame):
@@ -26,7 +25,8 @@ class MainApplication(ttk.Frame):
         # Состояние приложения
         self.export_menu: Optional[tk.Menu] = None
         self.df: Optional[pd.DataFrame] = None
-        self.current_plot_params: Optional[list] = None
+        self.plot_manager = None
+        self.plots_tab = None
 
         self._set_icon()
         self._apply_theme()
@@ -98,17 +98,35 @@ class MainApplication(ttk.Frame):
         help_menu.add_command(label="О программе", command=self._show_about)
 
     def _create_tabs(self):
-        """Создает вкладки с данными телеметрии."""
-        # Очистка существующей вкладки
-        for tab in self.notebook.tabs():
-            self.notebook.forget(tab)
+        """Создает вкладки с данными телеметрии.
+
+        Вкладка с графиком (Plotly) создается один раз и сохраняется между
+        открытием файлов, чтобы не пересоздавать встроенный браузер.
+        Остальные вкладки пересоздаются заново.
+        """
+        if self.plot_manager is None:
+            for tab in self.notebook.tabs():
+                self.notebook.forget(tab)
+            self.plot_manager = create_plots_tab(self.notebook, self.df, self.status_var)
+            self.plots_tab = self.notebook.tabs()[-1]
+        else:
+            self.plot_manager.df = self.df
+            self.plot_manager.clear()
+            self.plot_manager.refresh()
+
+        # Пересоздаем все вкладки, кроме графика
+        for tab in list(self.notebook.tabs()):
+            if tab != self.plots_tab:
+                self.notebook.forget(tab)
 
         create_basic_info_tab(self.notebook, self.df)
         create_statics_tab(self.notebook, self.df)
-        create_parameter_values(self.notebook, self.df)
-        vars = create_plots_tab(self.notebook, self.df, self.status_var)
-        self.current_plot_params = vars
         create_categorized_tabs(self.notebook, self.df)
+        create_parameter_values(self.notebook, self.df)
+        create_analysis_tab(self.notebook, self.df)
+
+        # Возвращаем вкладку графика на нужную позицию
+        self.notebook.insert(4, self.plots_tab, text="Графики")
 
     def _open_file(self):
         """Открывает и загружает файл телеметрии."""
@@ -149,13 +167,16 @@ class MainApplication(ttk.Frame):
 
         if file_path:
             try:
-                figure = export_plot_as_png(self.df, [self.current_plot_params[0].get(), self.current_plot_params[1].get()], self.status_var)
-                if figure:
-                    figure.savefig(file_path, dpi=300, bbox_inches="tight")
-                    self.status_var.set(f"График сохранен как: {file_path}")
-                    messagebox.showinfo(
-                        "Успех", f"График успешно экспортирован в:\n{file_path}"
-                    )
+                figure = self.plot_manager.get_figure()
+                lower = file_path.lower()
+                if lower.endswith((".png", ".pdf", ".svg", ".jpeg", ".webp")):
+                    figure.write_image(file_path, engine="kaleido")
+                else:
+                    figure.write_html(file_path)
+                self.status_var.set(f"График сохранен как: {file_path}")
+                messagebox.showinfo(
+                    "Успех", f"График успешно экспортирован в:\n{file_path}"
+                )
             except Exception as e:
                 messagebox.showerror(
                     "Ошибка экспорта", f"Не удалось экспортировать график:\n{str(e)}"
@@ -219,7 +240,7 @@ class MainApplication(ttk.Frame):
         """Показывает информацию о программе."""
         about_text = """
 Анализатор телеметрии
-Версия 0.3.2
+Версия 0.3.7
 
 Разработано для анализа и визуализации
 данных телеметрии uav.
@@ -231,4 +252,6 @@ https://github.com/itrickon/telemetry_analysis_tt
     def _exit_application(self):
         """Запрашивает подтверждение и выходит из приложения."""
         if messagebox.askyesno("Выход", "Вы уверены, что хотите выйти?"):
+            if self.plot_manager is not None:
+                self.plot_manager.shutdown()
             self.parent.quit()

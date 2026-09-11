@@ -3,7 +3,7 @@ import tkinter as tk
 from gui import MainApplication
 
 
-def main():  # Точка входа в приложение
+def main():
     root = tk.Tk()
     MainApplication(root)
     root.mainloop()

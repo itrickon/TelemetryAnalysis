@@ -7,8 +7,10 @@ from tkinter import ttk
 
 import pandas as pd
 
+from tkinter import colorchooser
+
 from constants import CATEGORY_RULES
-from blackboard.plotting_agraph import PlotManager
+from blackboard.plot_manager import PlotManager
 
 
 def _create_text_widget_with_scroll(parent: tk.Widget, text: str) -> tk.Text:
@@ -144,7 +146,7 @@ def create_parameter_values(notebook: ttk.Notebook, df: pd.DataFrame) -> ttk.Fra
 
     ttk.Label(val_frame, text="Параметр:").grid(row=0, column=0, padx=5, pady=5)
     var = tk.StringVar(value="timestamp")
-    combobox = ttk.Combobox(val_frame, textvariable=var, state="readonly")
+    combobox = ttk.Combobox(val_frame, textvariable=var, state="readonly", width=55)
     combobox.set(df.columns[0])
     combobox["values"] = list(df.columns)
     combobox.grid(row=0, column=1, padx=5, pady=5)
@@ -161,8 +163,26 @@ def create_parameter_values(notebook: ttk.Notebook, df: pd.DataFrame) -> ttk.Fra
             time_str = row['timestamp'].strftime('%H:%M:%S.%f')[:-3]
             tree.insert("", "end", values=(time_str, row[param]))
 
+    def update_combobox(event):
+        # Получаем текущее значение из поля ввода
+        search_term = entry.get().lower()
+        
+        # Фильтруем список: оставляем только те элементы, которые содержат поисковый термин
+        filtered_options = [option for option in df.columns if search_term in option.lower()]
+        
+        # Обновляем список значений Combobox
+        combobox['values'] = filtered_options
+
     plot_btn = ttk.Button(val_frame, text="Выбрать параметр", command=show_values)
     plot_btn.grid(row=0, column=4, padx=5, pady=5)
+    
+    ttk.Label(val_frame, text="Поиск параметра:").grid(row=1, column=0, padx=5, pady=5)
+    # Создаём поле ввода (Entry)
+    entry = tk.Entry(val_frame, width=55)
+    entry.grid(row=1, column=1, padx=10, pady=10)
+
+    # Привязываем обработчик события
+    entry.bind('<KeyRelease>', update_combobox)
     
     columns = ("Время", "Значение")
     tree = ttk.Treeview(frame, columns=columns, show="headings", height=20)
@@ -181,10 +201,14 @@ def create_parameter_values(notebook: ttk.Notebook, df: pd.DataFrame) -> ttk.Fra
     return frame
 
     
-    
 def create_plots_tab(
-    notebook: ttk.Notebook, df: pd.DataFrame, status_var: Optional[tk.StringVar] = None) -> list:
-    """Создает вкладку с графиками параметров.
+    notebook: ttk.Notebook, df: pd.DataFrame, status_var: Optional[tk.StringVar] = None
+) -> PlotManager:
+    """Создает вкладку с интерактивным Plotly-графиком.
+
+    Позволяет динамически добавлять/удалять несколько линий (параметров)
+    произвольных цветов. 
+    Зум/панорама и скрытие линий по клику по легенде реализованы средствами Plotly.
 
     Args:
         notebook: Виджет блокнота.
@@ -192,46 +216,134 @@ def create_plots_tab(
         status_var: Переменная статуса.
 
     Returns:
-        Список с текущими выбранными параметрами [x_var, y_var].
+        Экземпляр PlotManager для управления графиком.
     """
     frame = ttk.Frame(notebook)
     notebook.add(frame, text="Графики")
+    
+    canvas = tk.Canvas(frame, highlightthickness=0)
+    scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=canvas.yview)
+    inner_frame = ttk.Frame(canvas)
 
-    control_frame = ttk.Frame(frame)
+    inner_frame.bind("<Configure>",
+    lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+    canvas.bind("<MouseWheel>", lambda e: canvas.yview_scroll(int(-1 * (e.delta / 120)), "units"))
+    canvas.create_window((0, 0), window=inner_frame, anchor="nw")
+    canvas.configure(yscrollcommand=scrollbar.set)
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+    canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+    control_frame = ttk.Frame(inner_frame)
     control_frame.pack(fill=tk.X, padx=10, pady=5)
 
     # Выбор параметра для оси X
     ttk.Label(control_frame, text="Ось X:").grid(row=0, column=0, padx=5, pady=5)
     x_var = tk.StringVar(value="timestamp")
-    x_combobox = ttk.Combobox(control_frame, textvariable=x_var, state="readonly")
+    x_combobox = ttk.Combobox(control_frame, textvariable=x_var, state="readonly", width=55)
     x_combobox["values"] = list(df.columns)
     x_combobox.grid(row=0, column=1, padx=5, pady=5)
+    x_combobox.bind(
+        "<<ComboboxSelected>>",
+        lambda _: plot_manager.set_x(x_var.get()) if plot_manager else None,
+    )
+
+    # Очистка всех линий
+    clear_btn = ttk.Button(control_frame, text="Очистить график")
+    clear_btn.config(
+        command=lambda: (plot_manager.clear(), update_list())
+    )
+    clear_btn.grid(row=0, column=2, padx=5, pady=5, sticky='w')
 
     # Выбор параметра для оси Y
-    ttk.Label(control_frame, text="Ось Y:").grid(row=0, column=2, padx=5, pady=5)
-    y_var = tk.StringVar(value="timestamp")
-    y_combobox = ttk.Combobox(control_frame, textvariable=y_var, state="readonly")
+    ttk.Label(control_frame, text="Ось Y:").grid(row=1, column=0, padx=5, pady=5)
+    y_var = tk.StringVar(value=df.columns[0] if len(df.columns) else "")
+    y_combobox = ttk.Combobox(control_frame, textvariable=y_var, state="readonly", width=55)
     y_combobox["values"] = list(df.columns)
-    y_combobox.grid(row=0, column=3, padx=5, pady=5)
+    y_combobox.grid(row=1, column=1, padx=5, pady=5)
+    
+    # Добавление линии
+    add_btn = ttk.Button(control_frame, text="+ Добавить линию по Y")
 
-    # Фрейм для графика
-    plot_frame = ttk.Frame(frame)
+    def add_line():
+        y = y_var.get()
+        if y:
+            plot_manager.add_line(y, color_var.get())
+            update_list()
+
+    add_btn.config(command=add_line)
+    add_btn.grid(row=1, column=2, padx=5, pady=5, sticky='w')
+    
+    # Выбор цвета линии
+    color_var = tk.StringVar(value="#1f77b4")
+    color_btn = ttk.Button(control_frame, text="Цвет", width=8)
+
+    def choose_color():
+        choice = colorchooser.askcolor(title="Выберите цвет линии")
+        if choice and choice[1]:
+            color_var.set(choice[1])
+            color_btn.config(text=choice[1])
+
+    color_btn.config(command=choose_color)
+    color_btn.grid(row=1, column=3, padx=5, pady=5)
+    
+    def update_combobox(event):
+        # Получаем текущее значение из поля ввода
+        search_term = entry.get().lower()
+        
+        # Фильтруем список: оставляем только те элементы, которые содержат поисковый термин
+        filtered_options = [option for option in df.columns if search_term in option.lower()]
+        
+        # Обновляем список значений Combobox
+        y_combobox['values'] = filtered_options
+    
+    ttk.Label(control_frame, text="<- Поиск параметра по Y").grid(row=2, column=2, padx=5, pady=5, sticky='w')
+    # Создаём поле ввода (Entry)
+    entry = tk.Entry(control_frame, width=55)
+    entry.grid(row=2, column=1, padx=10, pady=10)
+
+    # Привязываем обработчик события
+    entry.bind('<KeyRelease>', update_combobox)
+    
+    # Фрейм для графика (в него встраивается браузер)
+    plot_frame = ttk.Frame(inner_frame)
     plot_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-    # Создание менеджера графиков
-    plot_manager = PlotManager(plot_frame, status_var)
 
-    # Функция для обновления графика
-    def update_plot():
-        plot_manager.create_plot(df, x_var.get(), y_var.get())
+    # Создание менеджера графиков (браузер встраивается в plot_frame)
+    plot_manager = PlotManager(plot_frame, df, status_var)
 
-    plot_btn = ttk.Button(control_frame, text="Построить график", command=update_plot)
-    plot_btn.grid(row=0, column=4, padx=5, pady=5)
+    # Начальная линия для наглядности
+    default_y = df.columns[1] if len(df.columns) > 1 else (df.columns[0] if len(df.columns) else None)
+    if default_y:
+        plot_manager.add_line(default_y, color_var.get())
+        
+    # Список добавленных линий с возможностью удаления
+    list_frame = ttk.Frame(inner_frame)
+    list_frame.pack(fill=tk.X, padx=10, pady=2)
 
-    # Начальный график
-    update_plot()
+    def update_list():
+        for widget in list_frame.winfo_children():
+            widget.destroy()
+        for t in plot_manager.traces:
+            row = ttk.Frame(list_frame)
+            row.pack(fill=tk.X, pady=1)
+            swatch = tk.Label(row, text="   ", background=t["color"], relief=tk.RIDGE)
+            swatch.pack(side=tk.LEFT, padx=4)
+            ttk.Label(row, text=t["col"]).pack(side=tk.LEFT, padx=4)
+            ttk.Button(
+                row,
+                text="✕",
+                width=3,
+                command=lambda col=t["col"]: (
+                    plot_manager.remove_line(col),
+                    update_list(),
+                ),
+            ).pack(side=tk.RIGHT)
 
-    return [x_var, y_var]
+
+    update_list()
+
+    return plot_manager
 
 def categorize_parameters(df_columns: list) -> dict:
     """Классифицирует параметры по категориям.
@@ -298,3 +410,18 @@ def create_categorized_tabs(notebook: ttk.Notebook, df: pd.DataFrame) -> ttk.Not
     _create_text_widget_with_scroll(frame, info_text)
 
     return notebook
+
+def create_analysis_tab(notebook: ttk.Notebook, df: pd.DataFrame) -> ttk.Notebook:
+    """Создает вкладку для анализа и обработки данных.
+
+    Args:
+        notebook: Виджет блокнота.
+        df: DataFrame с данными.
+
+    Returns:
+        Обновленный виджет блокнота.
+    """
+    categorized = categorize_parameters(df.columns)
+    frame = ttk.Frame(notebook)
+    notebook.add(frame, text="Анализ")
+    

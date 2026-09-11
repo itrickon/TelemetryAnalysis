@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Union
 
 import pandas as pd
-from matplotlib.figure import Figure
 import pyulog
 
 
@@ -100,8 +99,8 @@ def export_statistics_to_txt(df: pd.DataFrame, filename: Union[str, Path]) -> bo
 
 def export_plot_as_png(df: pd.DataFrame, plot_params: list,
     status_var
-) -> Union[Figure, None]:
-    """Создает график для экспорта.
+) -> Union[object, None]:
+    """Создает объект Plotly-Figure для экспорта.
 
     Args:
         df: DataFrame с данными телеметрии.
@@ -109,9 +108,11 @@ def export_plot_as_png(df: pd.DataFrame, plot_params: list,
         status_var: Переменная для обновления статуса.
 
     Returns:
-        Объект Figure для сохранения или None при ошибке.
+        Объект plotly.graph_objects.Figure или None при ошибке.
     """
     try:
+        import plotly.graph_objects as go
+
         x_var = plot_params[0]
         y_var = plot_params[1]
 
@@ -119,14 +120,9 @@ def export_plot_as_png(df: pd.DataFrame, plot_params: list,
             status_var.set("Ошибка: не выбраны оси для графика")
             return None
 
-        fig = Figure(figsize=(10, 6))
-        ax = fig.add_subplot(111)
-
-        ax.plot(df[x_var], df[y_var])
-        ax.set_xlabel(x_var)
-        ax.set_ylabel(y_var)
-        ax.set_title(f"{x_var} | {y_var}")
-        ax.grid(True)
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=df[x_var], y=df[y_var], mode="lines"))
+        fig.update_layout(title=f"{x_var} | {y_var}", template="plotly_white")
 
         return fig
 
