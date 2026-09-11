@@ -21,6 +21,8 @@ Desktop-приложение для анализа и визуализации �
 - **Pandas** - Обработка и анализ данных
 - **Plotly** - Интерактивные графики (зум, панорама, динамические линии)
 - **pywebview** - Встраивание графиков в окно приложения
+- **Plotly** - Интерактивные графики (зум, панорама, динамические линии)
+- **pywebview** - Встраивание графиков в окно приложения
 - **SV-TTK** - Современные стили для Tkinter
 
 ## Установка
@@ -48,6 +50,10 @@ cd telemetry_analysis_tt
 python -m nuitka --windows-console-mode=disable --windows-icon-from-ico=static/ping.ico --output-filename="Telemetry_analyzer.exe" --product-name="telem" --file-version=1.0.0.0 --product-version=1.0.0.0 main.py
 
 
+`pip install -r requirements.txt`
+
+> Примечание: на Linux для работы встроенных графиков требуется системный
+> WebKit2GTK, например: `sudo apt install webkit2gtk-4.1-dev`
 
 ### Запуск приложения
 `python main.py`

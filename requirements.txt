@@ -5,6 +5,12 @@ kaleido
 sv-ttk
 matplotlib>=3.5.0
 tf-nightly
+
+plotly
+kaleido
+sv-ttk
+matplotlib>=3.5.0
+tf-nightly
 pyinstaller
 nuitka
 imageio

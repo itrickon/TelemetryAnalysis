@@ -9,7 +9,10 @@ import pandas as pd
 
 from tkinter import colorchooser
 
+from tkinter import colorchooser
+
 from constants import CATEGORY_RULES
+from blackboard.plot_manager import PlotManager
 from blackboard.plot_manager import PlotManager
 
 
@@ -147,6 +150,7 @@ def create_parameter_values(notebook: ttk.Notebook, df: pd.DataFrame) -> ttk.Fra
     ttk.Label(val_frame, text="Параметр:").grid(row=0, column=0, padx=5, pady=5)
     var = tk.StringVar(value="timestamp")
     combobox = ttk.Combobox(val_frame, textvariable=var, state="readonly", width=55)
+    combobox = ttk.Combobox(val_frame, textvariable=var, state="readonly", width=55)
     combobox.set(df.columns[0])
     combobox["values"] = list(df.columns)
     combobox.grid(row=0, column=1, padx=5, pady=5)
@@ -173,8 +177,26 @@ def create_parameter_values(notebook: ttk.Notebook, df: pd.DataFrame) -> ttk.Fra
         # Обновляем список значений Combobox
         combobox['values'] = filtered_options
 
+    def update_combobox(event):
+        # Получаем текущее значение из поля ввода
+        search_term = entry.get().lower()
+        
+        # Фильтруем список: оставляем только те элементы, которые содержат поисковый термин
+        filtered_options = [option for option in df.columns if search_term in option.lower()]
+        
+        # Обновляем список значений Combobox
+        combobox['values'] = filtered_options
+
     plot_btn = ttk.Button(val_frame, text="Выбрать параметр", command=show_values)
     plot_btn.grid(row=0, column=4, padx=5, pady=5)
+    
+    ttk.Label(val_frame, text="Поиск параметра:").grid(row=1, column=0, padx=5, pady=5)
+    # Создаём поле ввода (Entry)
+    entry = tk.Entry(val_frame, width=55)
+    entry.grid(row=1, column=1, padx=10, pady=10)
+
+    # Привязываем обработчик события
+    entry.bind('<KeyRelease>', update_combobox)
     
     ttk.Label(val_frame, text="Поиск параметра:").grid(row=1, column=0, padx=5, pady=5)
     # Создаём поле ввода (Entry)
@@ -200,8 +222,16 @@ def create_parameter_values(notebook: ttk.Notebook, df: pd.DataFrame) -> ttk.Fra
 
     return frame
 
+
     
 def create_plots_tab(
+    notebook: ttk.Notebook, df: pd.DataFrame, status_var: Optional[tk.StringVar] = None
+) -> PlotManager:
+    """Создает вкладку с интерактивным Plotly-графиком.
+
+    Позволяет динамически добавлять/удалять несколько линий (параметров)
+    произвольных цветов. 
+    Зум/панорама и скрытие линий по клику по легенде реализованы средствами Plotly.
     notebook: ttk.Notebook, df: pd.DataFrame, status_var: Optional[tk.StringVar] = None
 ) -> PlotManager:
     """Создает вкладку с интерактивным Plotly-графиком.
@@ -217,9 +247,24 @@ def create_plots_tab(
 
     Returns:
         Экземпляр PlotManager для управления графиком.
+        Экземпляр PlotManager для управления графиком.
     """
     frame = ttk.Frame(notebook)
     notebook.add(frame, text="Графики")
+    
+    canvas = tk.Canvas(frame, highlightthickness=0)
+    scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=canvas.yview)
+    inner_frame = ttk.Frame(canvas)
+
+    inner_frame.bind("<Configure>",
+    lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+    canvas.bind("<MouseWheel>", lambda e: canvas.yview_scroll(int(-1 * (e.delta / 120)), "units"))
+    canvas.create_window((0, 0), window=inner_frame, anchor="nw")
+    canvas.configure(yscrollcommand=scrollbar.set)
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+    canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+    control_frame = ttk.Frame(inner_frame)
     
     canvas = tk.Canvas(frame, highlightthickness=0)
     scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=canvas.yview)
@@ -312,6 +357,39 @@ def create_plots_tab(
     # Создание менеджера графиков (браузер встраивается в plot_frame)
     plot_manager = PlotManager(plot_frame, df, status_var)
 
+    # Создание менеджера графиков (браузер встраивается в plot_frame)
+    plot_manager = PlotManager(plot_frame, df, status_var)
+
+    # Начальная линия для наглядности
+    default_y = df.columns[1] if len(df.columns) > 1 else (df.columns[0] if len(df.columns) else None)
+    if default_y:
+        plot_manager.add_line(default_y, color_var.get())
+        
+    # Список добавленных линий с возможностью удаления
+    list_frame = ttk.Frame(inner_frame)
+    list_frame.pack(fill=tk.X, padx=10, pady=2)
+
+    def update_list():
+        for widget in list_frame.winfo_children():
+            widget.destroy()
+        for t in plot_manager.traces:
+            row = ttk.Frame(list_frame)
+            row.pack(fill=tk.X, pady=1)
+            swatch = tk.Label(row, text="   ", background=t["color"], relief=tk.RIDGE)
+            swatch.pack(side=tk.LEFT, padx=4)
+            ttk.Label(row, text=t["col"]).pack(side=tk.LEFT, padx=4)
+            ttk.Button(
+                row,
+                text="✕",
+                width=3,
+                command=lambda col=t["col"]: (
+                    plot_manager.remove_line(col),
+                    update_list(),
+                ),
+            ).pack(side=tk.RIGHT)
+
+
+    update_list()
     # Начальная линия для наглядности
     default_y = df.columns[1] if len(df.columns) > 1 else (df.columns[0] if len(df.columns) else None)
     if default_y:
@@ -343,6 +421,7 @@ def create_plots_tab(
 
     update_list()
 
+    return plot_manager
     return plot_manager
 
 def categorize_parameters(df_columns: list) -> dict:
@@ -410,6 +489,21 @@ def create_categorized_tabs(notebook: ttk.Notebook, df: pd.DataFrame) -> ttk.Not
     _create_text_widget_with_scroll(frame, info_text)
 
     return notebook
+
+def create_analysis_tab(notebook: ttk.Notebook, df: pd.DataFrame) -> ttk.Notebook:
+    """Создает вкладку для анализа и обработки данных.
+
+    Args:
+        notebook: Виджет блокнота.
+        df: DataFrame с данными.
+
+    Returns:
+        Обновленный виджет блокнота.
+    """
+    categorized = categorize_parameters(df.columns)
+    frame = ttk.Frame(notebook)
+    notebook.add(frame, text="Анализ")
+    
 
 def create_analysis_tab(notebook: ttk.Notebook, df: pd.DataFrame) -> ttk.Notebook:
     """Создает вкладку для анализа и обработки данных.
